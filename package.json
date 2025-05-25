@@ -5,7 +5,7 @@
   "version": "0.0.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tanstack/pacer.git"
+    "url": "https://github.com/tanstack/db.git"
   },
   "author": "Kyle Mathews <mathews.kyle@gmail.com>",
   "packageManager": "pnpm@10.6.3",
