@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { createTransaction } from "../src/transactions"
-import { Collection } from "../src/collection"
+import { createCollection } from "../src/collection"
+import {
+  MissingMutationFunctionError,
+  TransactionAlreadyCompletedRollbackError,
+  TransactionNotPendingCommitError,
+  TransactionNotPendingMutateError,
+} from "../src/errors"
 
 describe(`Transactions`, () => {
   it(`calling createTransaction creates a transaction`, () => {
@@ -19,12 +25,11 @@ describe(`Transactions`, () => {
 
     transaction.commit()
     expect(transaction.state).toBe(`completed`)
+    expect(transaction.isPersisted.promise).resolves.toBeDefined()
   })
   it(`thows an error if you don't pass in mutationFn`, () => {
     // @ts-expect-error missing argument on purpose
-    expect(() => createTransaction({})).toThrowError(
-      `mutationFn is required when creating a transaction`
-    )
+    expect(() => createTransaction({})).toThrow(MissingMutationFunctionError)
   })
   it(`thows an error if call mutate or commit or rollback when it's completed`, async () => {
     const transaction = createTransaction({
@@ -33,14 +38,14 @@ describe(`Transactions`, () => {
 
     await transaction.commit()
 
-    await expect(transaction.commit()).rejects.toThrowError(
-      `You can no longer call .commit() as the transaction is no longer pending`
+    await expect(transaction.commit()).rejects.toThrow(
+      TransactionNotPendingCommitError
     )
-    expect(() => transaction.rollback()).toThrowError(
-      `You can no longer call .rollback() as the transaction is already completed`
+    expect(() => transaction.rollback()).toThrow(
+      TransactionAlreadyCompletedRollbackError
     )
-    expect(() => transaction.mutate(() => {})).toThrowError(
-      `You can no longer call .mutate() as the transaction is no longer pending`
+    expect(() => transaction.mutate(() => {})).toThrow(
+      TransactionNotPendingMutateError
     )
   })
   it(`should allow manually controlling the transaction lifecycle`, () => {
@@ -48,18 +53,31 @@ describe(`Transactions`, () => {
       mutationFn: async () => Promise.resolve(),
       autoCommit: false,
     })
-    const collection = new Collection<{ value: string; newProp?: string }>({
+    const collection = createCollection<{
+      id: number
+      value: string
+      newProp?: string
+    }>({
       id: `foo`,
+      getKey: (item) => item.id,
       sync: {
         sync: () => {},
       },
     })
 
     transaction.mutate(() => {
-      collection.insert({ value: `foo-me`, newProp: `something something` })
+      collection.insert({
+        id: 1,
+        value: `foo-me`,
+        newProp: `something something`,
+      })
     })
     transaction.mutate(() => {
-      collection.insert({ value: `foo-me2`, newProp: `something something2` })
+      collection.insert({
+        id: 2,
+        value: `foo-me2`,
+        newProp: `something something2`,
+      })
     })
 
     expect(transaction.mutations).toHaveLength(2)
@@ -71,22 +89,40 @@ describe(`Transactions`, () => {
       mutationFn: async () => Promise.resolve(),
       autoCommit: false,
     })
-    const collection1 = new Collection<{ value: string; newProp?: string }>({
+    const collection1 = createCollection<{
+      id: number
+      value: string
+      newProp?: string
+    }>({
       id: `foo`,
+      getKey: (item) => item.id,
       sync: {
         sync: () => {},
       },
     })
-    const collection2 = new Collection<{ value: string; newProp?: string }>({
+    const collection2 = createCollection<{
+      id: number
+      value: string
+      newProp?: string
+    }>({
       id: `foo2`,
+      getKey: (item) => item.id,
       sync: {
         sync: () => {},
       },
     })
 
     transaction.mutate(() => {
-      collection1.insert({ value: `foo-me`, newProp: `something something` })
-      collection2.insert({ value: `foo-me`, newProp: `something something` })
+      collection1.insert({
+        id: 1,
+        value: `foo-me1`,
+        newProp: `something something`,
+      })
+      collection2.insert({
+        id: 1,
+        value: `foo-me2`,
+        newProp: `something something`,
+      })
     })
 
     expect(transaction.mutations).toHaveLength(2)
@@ -98,15 +134,24 @@ describe(`Transactions`, () => {
       mutationFn: async () => Promise.resolve(),
       autoCommit: false,
     })
-    const collection = new Collection<{ value: string; newProp?: string }>({
+    const collection = createCollection<{
+      id: number
+      value: string
+      newProp?: string
+    }>({
       id: `foo`,
+      getKey: (item) => item.id,
       sync: {
         sync: () => {},
       },
     })
 
     transaction.mutate(() => {
-      collection.insert({ value: `foo-me`, newProp: `something something` })
+      collection.insert({
+        id: 1,
+        value: `foo-me`,
+        newProp: `something something`,
+      })
     })
 
     transaction.rollback()
@@ -122,15 +167,24 @@ describe(`Transactions`, () => {
       },
       autoCommit: false,
     })
-    const collection = new Collection<{ value: string; newProp?: string }>({
+    const collection = createCollection<{
+      id: number
+      value: string
+      newProp?: string
+    }>({
       id: `foo`,
+      getKey: (item) => item.id,
       sync: {
         sync: () => {},
       },
     })
 
     transaction.mutate(() => {
-      collection.insert({ value: `foo-me`, newProp: `something something` })
+      collection.insert({
+        id: 1,
+        value: `foo-me`,
+        newProp: `something something`,
+      })
     })
 
     transaction.commit()
@@ -149,15 +203,24 @@ describe(`Transactions`, () => {
       },
       autoCommit: false,
     })
-    const collection = new Collection<{ value: string; newProp?: string }>({
+    const collection = createCollection<{
+      id: number
+      value: string
+      newProp?: string
+    }>({
       id: `foo`,
+      getKey: (item) => item.id,
       sync: {
         sync: () => {},
       },
     })
 
     transaction.mutate(() => {
-      collection.insert({ value: `foo-me`, newProp: `something something` })
+      collection.insert({
+        id: 1,
+        value: `foo-me`,
+        newProp: `something something`,
+      })
     })
 
     transaction.commit()
@@ -181,20 +244,29 @@ describe(`Transactions`, () => {
       mutationFn: async () => Promise.resolve(),
       autoCommit: false,
     })
-    const collection = new Collection<{ value: string; newProp?: string }>({
+    const collection = createCollection<{
+      id: number
+      value: string
+      newProp?: string
+    }>({
       id: `foo`,
+      getKey: (val) => val.id,
       sync: {
         sync: () => {},
       },
     })
 
     transaction1.mutate(() => {
-      collection.insert({ value: `foo-me`, newProp: `something something` })
+      collection.insert({
+        id: 1,
+        value: `foo-me`,
+        newProp: `something something`,
+      })
     })
 
     transaction2.mutate(() => {
       collection.state.forEach((object) => {
-        collection.update(object, (draft) => {
+        collection.update(object.id, (draft) => {
           draft.value = `foo-me-2`
         })
       })
@@ -205,7 +277,7 @@ describe(`Transactions`, () => {
 
     transaction3.mutate(() => {
       collection.state.forEach((object) => {
-        collection.update(object, (draft) => {
+        collection.update(object.id, (draft) => {
           draft.value = `foo-me-3`
         })
       })

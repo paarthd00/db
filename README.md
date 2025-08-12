@@ -10,7 +10,7 @@ TanStack DB extends TanStack Query with collections, live queries and optimistic
   <a href="https://x.com/intent/post?text=TanStack%20DB&url=https://tanstack.com/db">
     <img alt="#TanStack" src="https://img.shields.io/twitter/url?color=%2308a0e9&label=%23TanStack&style=social&url=https%3A%2F%2Ftwitter.com%2Fintent%2Ftweet%3Fbutton_hashtag%3DTanStack" /></a>
   <a href="#status">
-    <img src="https://img.shields.io/badge/status-alpha-orange" alt="Status - Alpha"></a>
+    <img src="https://img.shields.io/badge/status-beta-yellow" alt="Status - BETA"></a>
   <a href="https://npmjs.com/package/@tanstack/db">
     <img alt="" src="https://img.shields.io/npm/dm/@tanstack/db.svg" /></a>
   <a href="https://discord.gg/yjUNbvbraC">
@@ -48,55 +48,60 @@ TanStack DB is **backend agnostic** and **incrementally adoptable**:
 Sync data into collections:
 
 ```ts
-import { createQueryCollection } from "@tanstack/db-collections"
+import { createCollection, QueryClient } from "@tanstack/react-db"
+import { queryCollectionOptions } from "@tanstack/query-db-collection"
 
-const todoCollection = createQueryCollection<Todo>({
-  queryKey: ["todos"],
-  queryFn: async () => fetch("/api/todos"),
-  getId: (item) => item.id,
-  schema: todoSchema, // any standard schema
-})
+const todoCollection = createCollection(
+  queryCollectionOptions({
+    queryKey: ["todos"],
+    queryFn: async () => fetch("/api/todos"),
+    queryClient: new QueryClient(),
+    getKey: (item) => item.id,
+    schema: todoSchema, // any standard schema
+  })
+)
 ```
 
 Use live queries in your components:
 
 ```tsx
 import { useLiveQuery } from "@tanstack/react-db"
+import { eq } from "@tanstack/db"
 
 const Todos = () => {
   const { data: todos } = useLiveQuery((query) =>
-    query.from({ todoCollection }).where("@completed", "=", false)
+    query
+      .from({ todos: todoCollection })
+      .where(({ todos }) => eq(todos.completed, false))
   )
 
   return <List items={todos} />
 }
 ```
 
-Apply transactional writes with local optimistic state:
+Apply mutations with local optimistic state:
 
 ```tsx
-import { useOptimisticMutation } from "@tanstack/react-db"
+// Define collection with persistence handlers
+const todoCollection = createCollection({
+  id: "todos",
+  // ... other config
+  onInsert: async ({ transaction }) => {
+    const modified = transaction.mutations[0].modified
+    await api.todos.create(modified)
+  },
+})
 
+// Then use collection operators in your components
 const AddTodo = () => {
-  const addTodo = useOptimisticMutation({
-    mutationFn: async ({ transaction }) => {
-      const { collection, modified: newTodo } = transaction.mutations[0]!
-
-      await api.todos.create(newTodo)
-      await collection.refetch()
-    },
-  })
-
   return (
     <Button
       onClick={() =>
-        addTodo.mutate(() =>
-          todoCollection.insert({
-            id: uuid(),
-            text: "🔥 Make app faster",
-            completed: false,
-          })
-        )
+        todoCollection.insert({
+          id: uuid(),
+          text: "🔥 Make app faster",
+          completed: false,
+        })
       }
     />
   )
@@ -105,7 +110,7 @@ const AddTodo = () => {
 
 ## 📚 Docs
 
-See the [Usage guide](./docs/index.md) for more details, including how to do:
+See the [Usage guide](./docs/overview.md) for more details, including how to do:
 
 - real-time sync
 - cross-collection queries
@@ -131,10 +136,28 @@ There's also an example [React todo app](./examples/react/todo) and usage exampl
 - batch and stage local changes across collections with immediate application of local optimistic updates
 - sync transactions to the backend with automatic rollbacks and management of optimistic state
 
+## 📦 Collection Types
+
+TanStack DB provides several collection types to support different backend integrations:
+
+- **`@tanstack/db`** - Core collection functionality with local-only and local-storage collections for offline-first applications
+- **`@tanstack/query-db-collection`** - Collections backed by [TanStack Query](https://tanstack.com/query) for REST APIs and GraphQL endpoints
+- **`@tanstack/electric-db-collection`** - Real-time sync collections powered by [ElectricSQL](https://electric-sql.com) for live database synchronization
+- **`@tanstack/trailbase-db-collection`** - Collections for [TrailBase](https://trailbase.io) backend integration
+
+## Framework integrations
+
+TanStack DB integrates with React & Vue with more on the way!
+
+- **`@tanstack/react-db`** - React hooks and components for using TanStack DB collections in React applications
+- **`@tanstack/vue-db`** - Vue composables for using TanStack DB collections in Vue applications
+
 ## 🔧 Install
 
 ```bash
-npm install @tanstack/react-db @tanstack/db-collections
+npm install @tanstack/react-db
+# Optional: for specific collection types
+npm install @tanstack/electric-db-collection @tanstack/query-db-collection
 ```
 
 Other framework integrations are in progress.
@@ -163,7 +186,7 @@ No. TanStack DB is not an ORM. Queries run entirely in the client against local 
 
 ## Status
 
-Tanstack DB is currently an early preview release in alpha. It's still under active development. There will be bugs and the APIs are still liable to change.
+Tanstack DB is currently in BETA. See [the release post](https://tanstack.com/blog/tanstack-db-0.1-the-embedded-client-database-for-tanstack-query) for more details.
 
 ## Contributing
 
